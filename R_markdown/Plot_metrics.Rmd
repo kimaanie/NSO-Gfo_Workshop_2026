@@ -32,9 +32,9 @@ library(rsample) # Package for resampling, including cross-validation
 #Import data
 ```{r}
 setwd("enter/path/to/working/directory/")
-lidar<-readLAScatalog("data") # Read point cloud data as catalog (can be folder contianing several LAS/LAZ files, or just one file)
+lidar<-readLAScatalog("data/lidar") # Read point cloud data as catalog (can be folder contianing several LAS/LAZ files, or just one file)
 las<-readLAS(lidar, filter = "-keep Z above 1.3 -drop Z above 40") # Read data as one LAS/LAZ file (PS: this can becaome very large files, so process in batches using LAScatalog through LAScatalog processing engine in lidR package if you have many files). You can also use the filter option to filter different attributes, for example only retain height values (Z) that are above 1.3 m and remove values above 40 m.
-plots<-st_read("plots.gml") # Read vector data for plots (plot centre points)
+plots<-st_read("data/plots.gml") # Read vector data for plots (plot centre points)
 ```
 
 #Inspect lidar data
