@@ -1,0 +1,91 @@
+---
+title: "Canopy_height_model"
+author: "Kim André Anstensen Nielsen"
+date: "2026-08-31"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+##Introduction
+In this R markdown file you will find code for calculating canopy height models (CHMs) from point cloud data, for example from lidar or digital 
+aerial photogrammetry (DAP). The lidar data provided in this example are from natiponal surveys in Norway from 2015, with minimum 2 points per m2. The plots are a systematic grid created solely for the purposes of this workshop, and is not related to any project.
+
+Install R packages if not already done
+```{r}
+# install.packages("tidyverse")
+# install.packages("sf")
+# install.packages("terra")
+# install.packages("lidR", repos = c("https://r-lidar.r-universe.dev", "https://cloud.r-project.org"))
+# install.packages("OpenStreetMap")
+# install.packages("ForestGapR")
+# installed.packages("raster")
+```
+
+Read R packages
+```{r include=FALSE}
+library(tidyverse) # Library of several packages, including dplyr and ggplot2.
+library(sf) # Package for spatial vector data, such as polygons.
+library(terra) # Package for raster data.
+library(lidR) # Package for point cloud analysis, processing, and manipulation.
+library(ForestGapR) # Package for detecting canopy gaps.
+library(raster) # Decrepit package for raster data (but some packages still use it as dependency)
+```
+
+Import data
+```{r}
+setwd("enter/path/to/working/directory/")
+lidar<-readLAScatalog("data") # Read point cloud data as catalog (can be folder contianing several LAS/LAZ files, or just one file)
+las<-readLAS(lidar, filter = "-keep Z above 1.3 -drop Z above 40") # Read data as one LAS/LAZ file (PS: this can becaome very large files, so process in batches using LAScatalog through LAScatalog processing engine in lidR package if you have many files). You can also use the filter option to filter different attributes, for example only retain height values (Z) that are above 1.3 m and remove values above 40 m.
+plots<-st_read("QGIS/plots.gml") # Read vector data for plots (center points)
+plot1<-plots[1,] # Select just one plot for example in this script. Recommend using LAScatalog or loop files for creating several plot-wise CHMs.
+
+```
+
+Inspect lidar data
+```{r}
+summary(las)
+plot(las)
+```
+
+Clip lidar data to region of interest
+```{r}
+las_clip<-clip_roi(las,plot1, radius=15)
+plot(las_clip)
+```
+
+
+Height normalisation
+```{r}
+las_norm<-normalize_height(las_clip, tin())
+plot(las_norm)
+```
+
+Create CHM
+```{r}
+CHM_50cm<-rasterize_canopy(las_norm, res = 0.5, pitfree())
+CHM_30cm<-rasterize_canopy(las_norm, res = 0.3, pitfree())
+CHM_10cm<-rasterize_canopy(las_norm, res = 0.1, pitfree())
+```
+
+Compare CHM
+```{r}
+plot(CHM_50cm) # Visual inspection: seemingly appropriate pixel resolution for the input data.
+plot(CHM_30cm) # Visual inspection: some distortions, may be too fine pixel resolution for the input data.
+plot(CHM_10cm) # Visual inspection: large distortions, too fine pixel resolution for the input data.
+```
+
+Calculate gap metrics
+```{r}
+height_threshold <- 2 #The threshold height for a gap, where values above it will not be included in or detected as a gap.
+size <- c(16,Inf) #The minimum and maximum size of a gap in m2 units
+CHM_50cm<-raster(CHM_50cm)
+
+gaps<-ForestGapR::getForestGaps(CHM_50cm,threshold = height_threshold, size = size)
+plot(CHM_50cm)
+plot(gaps, add=T, axes=F, legend = F, col="blue")
+
+stats<-ForestGapR::GapStats(gap_layer=gaps, chm_layer=CHM_50cm)
+head(stats)
+```
+
+

@@ -1,0 +1,80 @@
+---
+title: "Plot_metrics"
+author: "Kim André Anstensen Nielsen"
+date: "2026-08-31"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+#Introduction
+In this R markdown file you will find code for calculating plot-level structural metrics from point cloud data, for example from lidar or digital aerial photogrammetry (DAP). The lidar data provided in this example are from natiponal surveys in Norway from 2015, with minimum 2 points per m2. The plots are a systematic grid created solely for the purposes of this workshop, and is not related to any project.
+
+
+#Install R packages if not already done
+```{r}
+# install.packages("tidyverse")
+# install.packages("sf")
+# install.packages("lidR", repos = c("https://r-lidar.r-universe.dev", "https://cloud.r-project.org"))
+# install.packages("rsample")
+# install.packages("leaps")
+# install.packages("car")
+# install.packages("corrplot")
+```
+
+#Read R packages
+```{r include=FALSE}
+library(tidyverse) # Library of several packages, including dplyr and ggplot2.
+library(sf) # Package for spatial vector data, such as polygons.
+library(lidR) # Package for point cloud analysis, processing, and manipulation.
+library(rsample) # Package for resampling, including cross-validation
+```
+
+#Import data
+```{r}
+setwd("enter/path/to/working/directory/")
+lidar<-readLAScatalog("data") # Read point cloud data as catalog (can be folder contianing several LAS/LAZ files, or just one file)
+las<-readLAS(lidar, filter = "-keep Z above 1.3 -drop Z above 40") # Read data as one LAS/LAZ file (PS: this can becaome very large files, so process in batches using LAScatalog through LAScatalog processing engine in lidR package if you have many files). You can also use the filter option to filter different attributes, for example only retain height values (Z) that are above 1.3 m and remove values above 40 m.
+plots<-st_read("plots.gml") # Read vector data for plots (plot centre points)
+```
+
+#Inspect lidar data
+```{r}
+summary(las)
+plot(las)
+```
+
+#Height normalisation
+```{r}
+#las_ground<-classify_ground(las, algorithm = csf(sloop_smooth = TRUE, class_threshold = 1, cloth_resolution = 0.5, time_step = 1)) # If the ground points have not been classified in your dataset, then you can use the classify_ground function in lidR to do this. Parameters need to be adjusted depending on steepness of terrain and point density.
+las_norm<-normalize_height(las, tin()) #normalises the height by setting the height values of the classified ground points to 0.
+plot(las_norm)
+```
+
+
+#Calculate standard plot metrics
+```{r}
+metrics<-plot_metrics(las_norm, ~stdmetrics_z(Z), plots, radius=8.92) # Utilising standard point cloud metrics for height values. See https://rdrr.io/cran/lidR/man/stdmetrics.html for more information about different metrics and custom functions you can make.
+head(metrics)
+```
+
+
+#Calculate custom plot metrics
+```{r}
+# Create a custom function, which can also include other point cloud attributes than z, for example RGB-values or intensity (return strength from the lidar laser pulses)
+custom_metrics <- function(z, i) {
+  metrics = list(
+     z_mean = mean(z[z>2]), # Mean height value above height threshold.
+     z_max  = max(z),       # Maximum height value.
+     z_sd = sd(z[z>2]), # Standard deviation of height values above height threshold.
+     z_cv = sd(z[z>2])/mean(z[z>2]), # Coefficient of variation of height values above height threshold.
+     i_sd = sd(i[z>2]), # Standard deviation of intensity values above height threshold.
+     i_cv = sd(i[z>2])/mean(i[z>2]) # Coefficient of variation of intensity values above height threshold.
+  )
+   return(metrics)
+}
+
+
+custom_metrics<-plot_metrics(las_norm, ~custom_metrics(Z, Intensity), plots, radius=8.92) # Utilising standard point cloud metrics for height values. See https://rdrr.io/cran/lidR/man/stdmetrics.html for more information about different metrics and custom functions you can make.
+head(custom_metrics)
+```
+
